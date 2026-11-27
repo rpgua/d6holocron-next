@@ -1,0 +1,89 @@
+---
+import { ArrowLeft } from "@lucide/astro";
+import BookCard from "../components/BookCard.astro";
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import { getTranslations, localizePath, type Locale } from "../i18n";
+import type { CategoryKey } from "../i18n/uk";
+import Layout from "../layouts/Layout.astro";
+import { CATEGORY_ORDER, type BookEntry } from "../utils/books";
+
+interface Props {
+  lang: Locale;
+  category: CategoryKey;
+  books: BookEntry[];
+  counts: Record<CategoryKey, number>;
+}
+
+const { lang, category, books, counts } = Astro.props;
+const t = getTranslations(lang);
+const categoryMeta = t.categories[category];
+
+const breadcrumbs = [
+  { name: t.nav.home, url: localizePath("/", lang) },
+  { name: t.books.title, url: localizePath("/books", lang) },
+  {
+    name: categoryMeta.name,
+    url: localizePath(`/categories/${category}`, lang),
+  },
+];
+---
+
+<Layout
+  title={t.categoryPage.title(categoryMeta.name)}
+  description={categoryMeta.description}
+  lang={lang}
+  breadcrumbs={breadcrumbs}
+>
+  <Breadcrumbs items={breadcrumbs} lang={lang} />
+
+  <header class="mb-8">
+    <div class="flex flex-wrap items-center gap-3">
+      <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">
+        {categoryMeta.name}
+      </h1>
+      <span class="badge badge-soft badge-lg tabular-nums">
+        {t.books.booksCount(books.length)}
+      </span>
+    </div>
+    <p class="mt-2 text-base-content/75 max-w-2xl">
+      {categoryMeta.description}
+    </p>
+
+    <!-- Category switcher -->
+    <nav
+      aria-label={t.categoryPage.otherCategories}
+      class="mt-5 flex flex-wrap gap-2"
+    >
+      <a href={localizePath("/books", lang)} class="btn btn-sm btn-ghost">
+        <ArrowLeft class="size-4" aria-hidden="true" />
+        {t.categoryPage.backToAll}
+      </a>
+      {
+        CATEGORY_ORDER.map((key) => (
+          <a
+            href={localizePath(`/categories/${key}`, lang)}
+            class={`btn btn-sm ${key === category ? "btn-active" : ""}`}
+            aria-current={key === category ? "page" : undefined}
+          >
+            {t.categories[key].name}
+            <span class="badge badge-sm badge-ghost tabular-nums">
+              {counts[key]}
+            </span>
+          </a>
+        ))
+      }
+    </nav>
+  </header>
+
+  {
+    books.length > 0 ? (
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
+        {books.map((book, idx) => (
+          <BookCard book={book} lang={lang} eager={idx < 4} />
+        ))}
+      </div>
+    ) : (
+      <p class="text-base-content/70">{t.categoryPage.empty}</p>
+    )
+  }
+</Layout>

@@ -1,0 +1,197 @@
+---
+import { getImage } from "astro:assets";
+import type { CollectionEntry } from "astro:content";
+import {
+  DEFAULT_LOCALE,
+  getTranslations,
+  switchLocalePath,
+  type Locale,
+} from "../i18n";
+import { withBase } from "../utils/paths";
+
+export interface BreadcrumbItem {
+  name: string;
+  url: string;
+}
+
+export interface Props {
+  title: string;
+  description: string;
+  lang?: Locale;
+  image?: ImageMetadata | string;
+  book?: CollectionEntry<"books">["data"];
+  breadcrumbs?: BreadcrumbItem[];
+  alternateUrls?: Partial<Record<Locale, string>>;
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description,
+  lang = DEFAULT_LOCALE,
+  image,
+  book,
+  breadcrumbs = [],
+  alternateUrls,
+  noindex = false,
+} = Astro.props;
+
+const t = getTranslations(lang);
+const SITE_NAME = t.site.fullName;
+const DEFAULT_OG_IMAGE = withBase("/android-chrome-512x512.png");
+
+if (!Astro.site) {
+  throw new Error(
+    "`site` must be configured in astro.config.mjs for canonical and Open Graph URLs.",
+  );
+}
+
+// Build strict canonical URL using the configured production domain
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+
+const resolvedAlternates: Partial<Record<Locale, string>> = alternateUrls ?? {
+  en: switchLocalePath(Astro.url.pathname, "en"),
+  uk: switchLocalePath(Astro.url.pathname, "uk"),
+};
+const enAlternateURL = resolvedAlternates.en
+  ? new URL(resolvedAlternates.en, Astro.site)
+  : null;
+const ukAlternateURL = resolvedAlternates.uk
+  ? new URL(resolvedAlternates.uk, Astro.site)
+  : null;
+const xDefaultURL = enAlternateURL ?? ukAlternateURL ?? canonicalURL;
+
+// Optimize ImageMetadata covers to a lightweight JPEG (~50KB) for universal OG scraper support
+const rawImage = image ?? book?.cover ?? DEFAULT_OG_IMAGE;
+let ogImagePath: string;
+let ogImageWidth: number | undefined;
+let ogImageHeight: number | undefined;
+
+if (typeof rawImage === "string") {
+  ogImagePath = rawImage;
+} else {
+  const optimized = await getImage({
+    src: rawImage,
+    width: 800,
+    format: "jpeg",
+  });
+  ogImagePath = optimized.src;
+  ogImageWidth = optimized.attributes.width
+    ? Number(optimized.attributes.width)
+    : undefined;
+  ogImageHeight = optimized.attributes.height
+    ? Number(optimized.attributes.height)
+    : undefined;
+}
+
+const ogImageURL = new URL(ogImagePath, Astro.site);
+
+const ogType = book ? "book" : "website";
+const formattedTitle = title.includes(SITE_NAME)
+  ? title
+  : `${title} | ${SITE_NAME}`;
+
+// Build JSON-LD Book schema when rendering a book detail page
+const bookJsonLd = book
+  ? {
+      "@context": "https://schema.org",
+      "@type": "Book",
+      name: book.title,
+      description: book.description,
+      url: canonicalURL.href,
+      image: ogImageURL.href,
+      bookEdition: book.edition,
+      inLanguage: lang,
+      ...(book.isbn && { isbn: book.isbn }),
+      ...(book.pages && { numberOfPages: book.pages }),
+      ...(book.releaseYear && { datePublished: String(book.releaseYear) }),
+      ...(book.productCode && { identifier: book.productCode }),
+      publisher: {
+        "@type": "Organization",
+        name: book.publisher,
+      },
+      ...(book.author && {
+        author: Array.isArray(book.author)
+          ? book.author.map((name: string) => ({ "@type": "Person", name }))
+          : { "@type": "Person", name: book.author },
+      }),
+    }
+  : null;
+
+// Build JSON-LD BreadcrumbList schema
+const breadcrumbJsonLd =
+  breadcrumbs.length > 0
+    ? {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: breadcrumbs.map((crumb, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          name: crumb.name,
+          item: new URL(crumb.url, Astro.site).href,
+        })),
+      }
+    : null;
+---
+
+<!-- Primary Meta Tags -->
+<title>{formattedTitle}</title>
+<meta name="title" content={formattedTitle} />
+<meta name="description" content={description} />
+<link rel="canonical" href={canonicalURL.href} />
+<link rel="sitemap" href={withBase("/sitemap-index.xml")} />
+{enAlternateURL && <link rel="alternate" hreflang="en" href={enAlternateURL.href} />}
+{ukAlternateURL && <link rel="alternate" hreflang="uk" href={ukAlternateURL.href} />}
+<link rel="alternate" hreflang="x-default" href={xDefaultURL.href} />
+{noindex && <meta name="robots" content="noindex, nofollow" />}
+
+<!-- Open Graph / Facebook / Discord / Telegram -->
+<meta property="og:type" content={ogType} />
+<meta property="og:locale" content={t.locale} />
+<meta property="og:site_name" content={SITE_NAME} />
+<meta property="og:url" content={canonicalURL.href} />
+<meta property="og:title" content={formattedTitle} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={ogImageURL.href} />
+{
+  ogImageWidth && ogImageHeight && (
+    <>
+      <meta property="og:image:width" content={String(ogImageWidth)} />
+      <meta property="og:image:height" content={String(ogImageHeight)} />
+    </>
+  )
+}
+
+{book?.isbn && <meta property="book:isbn" content={book.isbn} />}
+{
+  book?.releaseYear && (
+    <meta property="book:release_date" content={`${book.releaseYear}-01-01`} />
+  )
+}
+
+<!-- Twitter Cards -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:url" content={canonicalURL.href} />
+<meta name="twitter:title" content={formattedTitle} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={ogImageURL.href} />
+
+<!-- Structured Data (JSON-LD) -->
+{
+  bookJsonLd && (
+    <script
+      is:inline
+      type="application/ld+json"
+      set:html={JSON.stringify(bookJsonLd)}
+    />
+  )
+}
+{
+  breadcrumbJsonLd && (
+    <script
+      is:inline
+      type="application/ld+json"
+      set:html={JSON.stringify(breadcrumbJsonLd)}
+    />
+  )
+}

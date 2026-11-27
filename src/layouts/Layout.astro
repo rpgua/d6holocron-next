@@ -1,0 +1,355 @@
+---
+import { GitBranch, Menu } from "@lucide/astro";
+import { getCollection } from "astro:content";
+import "../assets/app.css";
+import NavbarSearch from "../components/NavbarSearch.astro";
+import SEO, { type Props as SEOProps } from "../components/SEO.astro";
+import ThemeSwitcher from "../components/ThemeSwitcher.astro";
+import {
+  DEFAULT_LOCALE,
+  getTranslations,
+  localizePath,
+  switchLocalePath,
+  type Locale,
+} from "../i18n";
+import { CATEGORY_ORDER, getBooksByLocale, getBookStats } from "../utils/books";
+import { withBase } from "../utils/paths";
+import { THEME_SCHEME_MAP, THEME_STORAGE_KEY } from "../utils/themes";
+
+interface Props extends SEOProps {
+  lang?: Locale;
+}
+
+const { lang = DEFAULT_LOCALE, alternateUrls, ...seoProps } = Astro.props;
+const t = getTranslations(lang);
+const currentPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
+
+const allBooks = getBooksByLocale(await getCollection("books"), lang);
+const stats = getBookStats(allBooks);
+const currentYear = new Date().getFullYear();
+const GITHUB_URL = "https://github.com/rpgua/d6holocron-next";
+
+const navLinks = [
+  { path: "/", label: t.nav.home },
+  { path: "/books", label: t.nav.books },
+  { path: "/about", label: t.nav.about },
+];
+
+const isCurrent = (path: string) => {
+  const target = localizePath(path, lang).replace(/\/+$/, "") || "/";
+  return currentPath === target;
+};
+
+const isCategoryActive = CATEGORY_ORDER.some((c) =>
+  isCurrent(`/categories/${c}`),
+);
+
+const enUrl = alternateUrls
+  ? (alternateUrls.en ?? localizePath("/books", "en"))
+  : switchLocalePath(Astro.url.pathname, "en");
+const ukUrl = alternateUrls
+  ? (alternateUrls.uk ?? localizePath("/books", "uk"))
+  : switchLocalePath(Astro.url.pathname, "uk");
+---
+
+<!doctype html>
+<html lang={t.lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <script
+      is:inline
+      define:vars={{
+        storageKey: THEME_STORAGE_KEY,
+        schemeMap: THEME_SCHEME_MAP,
+      }}>
+      try {
+        const stored = localStorage.getItem(storageKey);
+        if (stored && schemeMap[stored]) {
+          document.documentElement.setAttribute("data-theme", stored);
+          const meta = document.querySelector('meta[name="color-scheme"]');
+          if (meta) meta.setAttribute("content", schemeMap[stored]);
+        }
+      } catch {}
+    </script>
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href={withBase("/apple-touch-icon.png")}
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href={withBase("/favicon-32x32.png")}
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href={withBase("/favicon-16x16.png")}
+    />
+    <link rel="manifest" href={withBase("/site.webmanifest")} />
+    <link
+      rel="preload"
+      href={withBase("/fonts/FixelVariable.ttf")}
+      as="font"
+      type="font/ttf"
+      crossorigin
+    />
+    <meta name="generator" content={Astro.generator} />
+    <SEO {...seoProps} lang={lang} alternateUrls={alternateUrls} />
+    <slot name="head" />
+  </head>
+  <body class="min-h-screen antialiased">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:top-3 focus:left-3 focus:z-50 focus:fixed btn btn-sm">
+      {t.nav.skipToContent}
+    </a>
+
+    <div class="drawer">
+      <input id="site-drawer" type="checkbox" class="drawer-toggle" />
+
+      <div class="flex flex-col bg-base-100 min-h-screen drawer-content">
+        <!-- Navbar -->
+        <header
+          data-pagefind-ignore
+          class="top-0 z-30 sticky gap-2 bg-base-200/95 backdrop-blur-sm px-4 border-base-300 border-b navbar">
+          <div class="gap-1 navbar-start">
+            <label
+              for="site-drawer"
+              aria-label={t.nav.openMenu}
+              class="lg:hidden btn btn-square btn-ghost drawer-button">
+              <Menu class="size-6" aria-hidden="true" />
+            </label>
+            <a
+              href={localizePath("/", lang)}
+              class="gap-2 px-2 font-bold text-base sm:text-lg tracking-tight btn btn-ghost">
+              <span>{t.site.name}</span>
+            </a>
+          </div>
+
+          <nav
+            aria-label={t.nav.mainNavigation}
+            class="hidden lg:flex navbar-center">
+            <ul class="gap-1 px-1 menu menu-horizontal">
+              <li>
+                <a
+                  href={localizePath("/", lang)}
+                  class={isCurrent("/") ? "menu-active" : ""}>
+                  {t.nav.home}
+                </a>
+              </li>
+              <li>
+                <a
+                  href={localizePath("/books", lang)}
+                  class={isCurrent("/books") ? "menu-active" : ""}>
+                  {t.nav.books}
+                </a>
+              </li>
+              <li>
+                <details>
+                  <summary class={isCategoryActive ? "menu-active" : ""}>
+                    {t.nav.categories}
+                  </summary>
+                  <ul class="z-50 bg-base-200 shadow-lg p-2 border border-base-300 rounded-box w-56">
+                    {CATEGORY_ORDER.map((category) => {
+                      const catPath = `/categories/${category}`;
+                      return (
+                        <li>
+                          <a
+                            href={localizePath(catPath, lang)}
+                            class={isCurrent(catPath) ? "menu-active" : ""}>
+                            <span class="flex-1">
+                              {t.categories[category].name}
+                            </span>
+                            <span class="tabular-nums badge badge-sm badge-ghost">
+                              {stats.byCategory[category]}
+                            </span>
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </details>
+              </li>
+              <li>
+                <a
+                  href={localizePath("/about", lang)}
+                  class={isCurrent("/about") ? "menu-active" : ""}>
+                  {t.nav.about}
+                </a>
+              </li>
+            </ul>
+          </nav>
+
+          <div class="gap-2 navbar-end">
+            <NavbarSearch lang={lang} class="hidden sm:block w-44 md:w-56" />
+
+            <!-- Language Switcher -->
+            <div class="join" role="group" aria-label={t.nav.languageSwitcher}>
+              <a
+                href={enUrl}
+                hreflang="en"
+                aria-current={lang === "en" ? "page" : undefined}
+                class={`join-item btn btn-xs ${lang === "en" ? "btn-active" : "btn-ghost"}`}>
+                EN
+              </a>
+              <a
+                href={ukUrl}
+                hreflang="uk"
+                aria-current={lang === "uk" ? "page" : undefined}
+                class={`join-item btn btn-xs ${lang === "uk" ? "btn-active" : "btn-ghost"}`}>
+                UK
+              </a>
+            </div>
+
+            <ThemeSwitcher lang={lang} />
+
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t.nav.github}
+              title={t.nav.github}
+              class="btn btn-ghost btn-sm btn-square">
+              <GitBranch class="size-4" aria-hidden="true" />
+            </a>
+          </div>
+        </header>
+
+        <!-- Main content -->
+        <main
+          id="main-content"
+          class="flex-1 mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 w-full max-w-7xl">
+          <slot />
+        </main>
+
+        <!-- Footer -->
+        <footer
+          data-pagefind-ignore
+          class="bg-base-200 mt-auto p-8 border-base-300 border-t text-base-content footer sm:footer-horizontal">
+          <aside class="max-w-sm">
+            <a
+              href={localizePath("/", lang)}
+              class="font-bold text-lg tracking-tight">
+              {t.site.fullName}
+            </a>
+            <p class="text-sm text-base-content/75">{t.footer.description}</p>
+            <p class="mt-2 text-xs text-base-content/60">
+              {t.footer.copyright(currentYear)}
+            </p>
+          </aside>
+
+          <nav>
+            <h2 class="footer-title">{t.footer.navigationTitle}</h2>
+            {navLinks.map((link) => (
+              <a href={localizePath(link.path, lang)} class="link link-hover">
+                {link.label}
+              </a>
+            ))}
+          </nav>
+
+          <nav>
+            <h2 class="footer-title">{t.footer.categoriesTitle}</h2>
+            {CATEGORY_ORDER.map((category) => (
+              <a
+                href={localizePath(`/categories/${category}`, lang)}
+                class="link link-hover">
+                {t.categories[category].name}
+              </a>
+            ))}
+          </nav>
+        </footer>
+      </div>
+
+      <!-- Mobile Sidebar Drawer -->
+      <div class="z-40 drawer-side" data-pagefind-ignore>
+        <label
+          for="site-drawer"
+          aria-label={t.nav.closeMenu}
+          class="drawer-overlay"></label>
+        <aside class="flex flex-col bg-base-200 border-base-300 border-r w-72 min-h-full">
+          <div class="flex items-center px-5 border-base-300 border-b h-16">
+            <a
+              href={localizePath("/", lang)}
+              class="flex items-center gap-2.5 font-bold text-lg tracking-tight">
+              <span
+                class="inline-flex justify-center items-center bg-primary rounded-box size-8 font-extrabold text-primary-content text-xs"
+                aria-hidden="true">
+                D6
+              </span>
+              <span>{t.site.name}</span>
+            </a>
+          </div>
+
+          <div class="sm:hidden p-4 pb-0">
+            <NavbarSearch lang={lang} />
+          </div>
+
+          <nav
+            aria-label={t.nav.sidebarNavigation}
+            class="flex-1 p-4 overflow-y-auto">
+            <ul class="gap-1 p-0 w-full menu">
+              <li class="opacity-60 text-xs uppercase tracking-wider menu-title">
+                {t.footer.navigationTitle}
+              </li>
+              <li>
+                <a
+                  href={localizePath("/", lang)}
+                  class={isCurrent("/") ? "menu-active" : ""}>
+                  {t.nav.home}
+                </a>
+              </li>
+              <li>
+                <a
+                  href={localizePath("/books", lang)}
+                  class={isCurrent("/books") ? "menu-active" : ""}>
+                  <span class="flex-1">{t.nav.books}</span>
+                  <span class="tabular-nums badge badge-sm badge-ghost">
+                    {stats.total}
+                  </span>
+                </a>
+              </li>
+              <li>
+                <a
+                  href={localizePath("/about", lang)}
+                  class={isCurrent("/about") ? "menu-active" : ""}>
+                  {t.nav.about}
+                </a>
+              </li>
+
+              <li class="opacity-60 mt-4 text-xs uppercase tracking-wider menu-title">
+                {t.nav.categories}
+              </li>
+              {CATEGORY_ORDER.map((category) => {
+                const categoryPath = `/categories/${category}`;
+                return (
+                  <li>
+                    <a
+                      href={localizePath(categoryPath, lang)}
+                      class={isCurrent(categoryPath) ? "menu-active" : ""}>
+                      <span class="flex-1">{t.categories[category].name}</span>
+                      <span class="tabular-nums badge badge-sm badge-ghost">
+                        {stats.byCategory[category]}
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
+
+              <li class="mt-4 pt-3 border-base-300 border-t">
+                <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
+                  <GitBranch class="size-4" aria-hidden="true" />
+                  <span>GitHub</span>
+                </a>
+              </li>
+            </ul>
+          </nav>
+        </aside>
+      </div>
+    </div>
+  </body>
+</html>

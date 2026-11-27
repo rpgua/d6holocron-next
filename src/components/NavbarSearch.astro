@@ -1,0 +1,201 @@
+---
+import { Search } from "@lucide/astro";
+import { DEFAULT_LOCALE, getTranslations, type Locale } from "../i18n";
+import { withBase } from "../utils/paths";
+
+interface Props {
+  lang?: Locale;
+  class?: string;
+}
+
+const { lang = DEFAULT_LOCALE, class: className = "" } = Astro.props;
+const t = getTranslations(lang);
+const pagefindUrl = withBase("/pagefind/pagefind.js");
+const basePrefix = withBase("/");
+---
+
+<div
+  class={`relative ${className}`}
+  data-navbar-search
+  data-pagefind-url={pagefindUrl}
+  data-base-prefix={basePrefix}
+  data-no-results={t.search.noResults}
+  data-loading={t.search.loading}
+  data-unavailable={t.search.unavailable}
+>
+  <label class="input input-sm flex items-center gap-2 w-full">
+    <Search class="size-4 opacity-60 shrink-0" aria-hidden="true" />
+    <input
+      type="search"
+      data-search-input
+      placeholder={t.search.placeholder}
+      aria-label={t.search.label}
+      autocomplete="off"
+      class="grow min-w-0"
+    />
+  </label>
+
+  <div
+    data-search-results
+    role="region"
+    aria-live="polite"
+    class="hidden absolute right-0 left-0 sm:left-auto sm:w-96 mt-2 z-50 rounded-box bg-base-200 border border-base-300 shadow-xl max-h-96 overflow-y-auto p-2"
+  >
+  </div>
+</div>
+
+<script>
+  let pagefindPromise: Promise<any> | null = null;
+
+  function loadPagefind(url: string) {
+    if (!pagefindPromise) {
+      pagefindPromise = import(/* @vite-ignore */ url)
+        .then(async (pf) => {
+          await pf.init();
+          return pf;
+        })
+        .catch((err) => {
+          pagefindPromise = null;
+          throw err;
+        });
+    }
+    return pagefindPromise;
+  }
+
+  function normalizeResultUrl(rawUrl: string, basePrefix: string): string {
+    let url = rawUrl || "/";
+    if (basePrefix !== "/" && !url.startsWith(basePrefix)) {
+      url = `${basePrefix}${url.startsWith("/") ? url : `/${url}`}`;
+    }
+    return url.replace(/\/+$/, "") || "/";
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-navbar-search]").forEach((root) => {
+    const input = root.querySelector<HTMLInputElement>("[data-search-input]");
+    const panel = root.querySelector<HTMLElement>("[data-search-results]");
+    if (!input || !panel) return;
+
+    const pagefindUrl = root.dataset.pagefindUrl || "/pagefind/pagefind.js";
+    const basePrefix = root.dataset.basePrefix || "/";
+    const noResultsText = root.dataset.noResults || "No results";
+    const loadingText = root.dataset.loading || "Searching...";
+    const unavailableText = root.dataset.unavailable || "Search unavailable";
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let activeQueryId = 0;
+
+    const hidePanel = () => {
+      panel.classList.add("hidden");
+    };
+
+    const showMessage = (text: string) => {
+      panel.innerHTML = "";
+      const p = document.createElement("p");
+      p.className = "px-3 py-2 text-sm text-base-content/70";
+      p.textContent = text;
+      panel.appendChild(p);
+      panel.classList.remove("hidden");
+    };
+
+    const runSearch = async (query: string) => {
+      const trimmed = query.trim();
+      if (!trimmed) {
+        hidePanel();
+        return;
+      }
+
+      const queryId = ++activeQueryId;
+      showMessage(loadingText);
+
+      try {
+        const pf = await loadPagefind(pagefindUrl);
+        if (queryId !== activeQueryId) return;
+
+        const search = await pf.search(trimmed);
+        if (queryId !== activeQueryId) return;
+
+        const items = await Promise.all(
+          search.results.slice(0, 8).map((r: any) => r.data()),
+        );
+        if (queryId !== activeQueryId) return;
+
+        if (items.length === 0) {
+          showMessage(noResultsText);
+          return;
+        }
+
+        const list = document.createElement("ul");
+        list.className = "menu menu-sm w-full p-0 gap-1";
+
+        for (const item of items) {
+          const li = document.createElement("li");
+          const a = document.createElement("a");
+          a.href = normalizeResultUrl(item.url, basePrefix);
+          a.className = "flex items-start gap-3 py-2";
+
+          if (item.meta?.image) {
+            const img = document.createElement("img");
+            img.src = item.meta.image;
+            img.alt = "";
+            img.loading = "lazy";
+            img.className = "w-9 h-12 object-cover rounded shrink-0 bg-base-300";
+            a.appendChild(img);
+          }
+
+          const body = document.createElement("div");
+          body.className = "min-w-0 flex-1";
+
+          const title = document.createElement("div");
+          title.className = "font-medium text-sm leading-snug line-clamp-1";
+          title.textContent = item.meta?.title || item.url;
+          body.appendChild(title);
+
+          if (item.excerpt) {
+            const excerpt = document.createElement("p");
+            excerpt.className =
+              "text-xs text-base-content/70 line-clamp-2 mt-0.5 [&_mark]:bg-primary/20 [&_mark]:text-base-content [&_mark]:rounded-xs [&_mark]:px-0.5";
+            excerpt.innerHTML = item.excerpt;
+            body.appendChild(excerpt);
+          }
+
+          a.appendChild(body);
+          li.appendChild(a);
+          list.appendChild(li);
+        }
+
+        panel.innerHTML = "";
+        panel.appendChild(list);
+        panel.classList.remove("hidden");
+      } catch {
+        if (queryId === activeQueryId) {
+          showMessage(unavailableText);
+        }
+      }
+    };
+
+    input.addEventListener("focus", () => {
+      loadPagefind(pagefindUrl).catch(() => {});
+      if (input.value.trim() && panel.childElementCount > 0) {
+        panel.classList.remove("hidden");
+      }
+    });
+
+    input.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => runSearch(input.value), 150);
+    });
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        hidePanel();
+        input.blur();
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      if (event.target instanceof Node && !root.contains(event.target)) {
+        hidePanel();
+      }
+    });
+  });
+</script>

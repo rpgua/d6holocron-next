@@ -1,0 +1,116 @@
+---
+import { ArrowRight } from "@lucide/astro";
+import { getCollection } from "astro:content";
+import BookCard from "../components/BookCard.astro";
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import { getTranslations, localizePath, type Locale } from "../i18n";
+import Layout from "../layouts/Layout.astro";
+import {
+  CATEGORY_ORDER,
+  getBooksByLocale,
+  groupBooksByCategory,
+} from "../utils/books";
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = getTranslations(lang);
+
+const allBooks = getBooksByLocale(await getCollection("books"), lang);
+const grouped = groupBooksByCategory(allBooks);
+
+const breadcrumbs = [
+  { name: t.nav.home, url: localizePath("/", lang) },
+  { name: t.books.title, url: localizePath("/books", lang) },
+];
+---
+
+<Layout
+  title={t.books.title}
+  description={t.books.description}
+  lang={lang}
+  breadcrumbs={breadcrumbs}
+>
+  <Breadcrumbs items={breadcrumbs} lang={lang} />
+
+  <header class="mb-8">
+    <div class="flex flex-wrap items-center gap-3">
+      <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">
+        {t.books.heading}
+      </h1>
+      <span class="badge badge-soft badge-lg tabular-nums">
+        {t.books.totalCount(allBooks.length)}
+      </span>
+    </div>
+    <p class="mt-2 text-base-content/75">
+      {t.books.subtitle}
+    </p>
+
+    <!-- Category quick-jump links -->
+    <nav aria-label={t.books.jumpToCategory} class="mt-5 flex flex-wrap gap-2">
+      {
+        CATEGORY_ORDER.map((category) => (
+          <a href={`#category-${category}`} class="btn btn-sm">
+            {t.categories[category].name}
+            <span class="badge badge-sm badge-ghost tabular-nums">
+              {grouped[category].length}
+            </span>
+          </a>
+        ))
+      }
+    </nav>
+  </header>
+
+  {
+    allBooks.length === 0 ? (
+      <div class="alert alert-soft">
+        <span>{t.books.empty}</span>
+      </div>
+    ) : (
+      <div class="space-y-12">
+        {CATEGORY_ORDER.map((category, categoryIndex) => {
+          const books = grouped[category];
+          if (books.length === 0) return null;
+          return (
+            <section id={`category-${category}`} class="scroll-mt-20">
+              <div class="flex flex-wrap items-end justify-between gap-3 pb-3 mb-5 border-b border-base-300">
+                <div>
+                  <div class="flex items-center gap-2.5">
+                    <h2 class="text-2xl font-bold tracking-tight">
+                      {t.categories[category].name}
+                    </h2>
+                    <span class="badge badge-soft tabular-nums">
+                      {books.length}
+                    </span>
+                  </div>
+                  <p class="text-sm text-base-content/75 mt-1">
+                    {t.categories[category].description}
+                  </p>
+                </div>
+                <a
+                  href={localizePath(`/categories/${category}`, lang)}
+                  class="btn btn-sm btn-ghost"
+                >
+                  {t.books.allInCategory}
+                  <ArrowRight class="size-4" aria-hidden="true" />
+                </a>
+              </div>
+
+              <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
+                {books.map((book, idx) => (
+                  <BookCard
+                    book={book}
+                    lang={lang}
+                    eager={categoryIndex === 0 && idx < 4}
+                  />
+                ))}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    )
+  }
+</Layout>

@@ -1,0 +1,127 @@
+---
+import { getCollection } from "astro:content";
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import { getTranslations, localizePath, type Locale } from "../i18n";
+import Layout from "../layouts/Layout.astro";
+import {
+  CATEGORY_ORDER,
+  EDITION_ORDER,
+  getBooksByLocale,
+  getBookStats,
+} from "../utils/books";
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = getTranslations(lang);
+
+const allBooks = getBooksByLocale(await getCollection("books"), lang);
+const stats = getBookStats(allBooks);
+
+const breadcrumbs = [
+  { name: t.nav.home, url: localizePath("/", lang) },
+  { name: t.nav.about, url: localizePath("/about", lang) },
+];
+---
+
+<Layout
+  title={t.about.title}
+  description={t.about.description}
+  lang={lang}
+  breadcrumbs={breadcrumbs}
+>
+  <Breadcrumbs items={breadcrumbs} lang={lang} />
+
+  <div class="max-w-4xl space-y-8" data-pagefind-body>
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">
+        {t.about.heading}
+      </h1>
+      <p class="mt-3 text-lg text-base-content/80 leading-relaxed">
+        {t.about.lead}
+      </p>
+    </header>
+
+    <section class="card card-border bg-base-200/50">
+      <div class="card-body">
+        <h2 class="card-title text-xl">{t.about.missionTitle}</h2>
+        <p class="text-base-content/80 leading-relaxed">
+          {t.about.missionBody}
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="text-2xl font-bold tracking-tight mb-4">
+        {t.about.coverageTitle}
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {
+          CATEGORY_ORDER.map((category) => (
+            <a
+              href={localizePath(`/categories/${category}`, lang)}
+              class="card card-border bg-base-100 hover:border-primary/50 transition-colors"
+            >
+              <div class="card-body p-5">
+                <div class="flex items-center justify-between gap-2">
+                  <h3 class="card-title text-base">
+                    {t.categories[category].name}
+                  </h3>
+                  <span class="badge badge-soft tabular-nums">
+                    {t.books.booksCount(stats.byCategory[category])}
+                  </span>
+                </div>
+                <p class="text-sm text-base-content/75">
+                  {t.categories[category].description}
+                </p>
+              </div>
+            </a>
+          ))
+        }
+      </div>
+    </section>
+
+    <section>
+      <h2 class="text-2xl font-bold tracking-tight mb-4">
+        {t.about.editionsTitle}
+      </h2>
+      <div class="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{t.bookDetail.fields.edition}</th>
+              <th class="text-right">{t.home.stats.books}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              EDITION_ORDER.map((edition) => (
+                <tr>
+                  <td class="font-medium">{t.editions[edition]}</td>
+                  <td class="text-right tabular-nums">
+                    {stats.byEdition[edition]}
+                  </td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="alert alert-soft">
+      <div>
+        <h2 class="font-bold text-base">{t.about.disclaimerTitle}</h2>
+        <p class="text-sm mt-1 opacity-85">{t.about.disclaimerBody}</p>
+      </div>
+    </section>
+
+    <div class="pt-2" data-pagefind-ignore>
+      <a href={localizePath("/books", lang)} class="btn btn-primary">
+        {t.about.exploreCta}
+      </a>
+    </div>
+  </div>
+</Layout>

@@ -1,0 +1,58 @@
+---
+import { getCollection } from "astro:content";
+import { LOCALES, localizePath, type Locale } from "../../../i18n";
+import {
+  getBooksByLocale,
+  getBookSlug,
+  hasBookInLocale,
+  sortBooks,
+  type BookEntry,
+} from "../../../utils/books";
+import BookDetailView from "../../../views/BookDetailView.astro";
+
+export async function getStaticPaths() {
+  const allBooks = await getCollection("books");
+
+  return LOCALES.flatMap((lang) => {
+    const localeBooks = getBooksByLocale(allBooks, lang);
+
+    return localeBooks.map((entry) => {
+      const slug = getBookSlug(entry);
+
+      const related = sortBooks(
+        localeBooks.filter(
+          (b) => b.data.category === entry.data.category && b.id !== entry.id,
+        ),
+      ).slice(0, 4);
+
+      const alternateUrls: Partial<Record<Locale, string>> = {};
+      for (const loc of LOCALES) {
+        if (hasBookInLocale(allBooks, slug, loc)) {
+          alternateUrls[loc] = localizePath(`/books/${slug}`, loc);
+        }
+      }
+
+      return {
+        params: { lang, slug },
+        props: { entry, related, alternateUrls },
+      };
+    });
+  });
+}
+
+interface Props {
+  entry: BookEntry;
+  related: BookEntry[];
+  alternateUrls: Partial<Record<Locale, string>>;
+}
+
+const { lang } = Astro.params as { lang: Locale };
+const { entry, related, alternateUrls } = Astro.props;
+---
+
+<BookDetailView
+  lang={lang}
+  entry={entry}
+  related={related}
+  alternateUrls={alternateUrls}
+/>

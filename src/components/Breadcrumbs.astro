@@ -1,0 +1,44 @@
+---
+import { DEFAULT_LOCALE, getTranslations, type Locale } from "../i18n";
+import type { BreadcrumbItem } from "./SEO.astro";
+
+interface Props {
+  items: BreadcrumbItem[];
+  lang?: Locale;
+}
+
+const { items, lang = DEFAULT_LOCALE } = Astro.props;
+const t = getTranslations(lang);
+---
+
+{
+  items.length > 0 && (
+    <nav
+      aria-label={t.nav.breadcrumbs}
+      data-pagefind-ignore
+      class="breadcrumbs text-sm mb-4"
+    >
+      <ul>
+        {items.map((item, index) => {
+          const isLast = index === items.length - 1;
+          return (
+            <li>
+              {isLast ? (
+                <span
+                  aria-current="page"
+                  class="text-base-content/70 font-medium"
+                >
+                  {item.name}
+                </span>
+              ) : (
+                <a href={item.url} class="link link-hover">
+                  {item.name}
+                </a>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  )
+}

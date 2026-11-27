@@ -1,0 +1,25 @@
+---
+import { DEFAULT_LOCALE, localizePath } from "../i18n";
+
+const enUrl = localizePath("/", DEFAULT_LOCALE);
+const ukUrl = localizePath("/", "uk");
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content={`0;url=${enUrl}`} />
+    <link rel="canonical" href={new URL(enUrl, Astro.site).href} />
+    <title>D6 Holocron NEXT</title>
+    <script is:inline define:vars={{ enUrl }}>
+      window.location.replace(enUrl);
+    </script>
+  </head>
+  <body>
+    <p>
+      Redirecting to <a href={enUrl}>English</a> (<a href={ukUrl}>Українська</a>)...
+    </p>
+  </body>
+</html>

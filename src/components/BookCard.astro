@@ -1,0 +1,74 @@
+---
+import { Image } from "astro:assets";
+import {
+  DEFAULT_LOCALE,
+  getTranslations,
+  localizePath,
+  type Locale,
+} from "../i18n";
+import {
+  getBookLanguages,
+  getBookSlug,
+  type BookEntry,
+} from "../utils/books";
+
+interface Props {
+  book: BookEntry;
+  lang?: Locale;
+  eager?: boolean;
+}
+
+const { book, lang = DEFAULT_LOCALE, eager = false } = Astro.props;
+const t = getTranslations(lang);
+const { title, cover, edition, releaseYear } = book.data;
+const href = localizePath(`/books/${getBookSlug(book)}`, lang);
+const languages = getBookLanguages(book);
+---
+
+<a
+  href={href}
+  class="group bg-base-100 hover:shadow-md card-border hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 h-full overflow-hidden transition-all duration-200 card"
+>
+  <figure class="bg-base-200 w-full aspect-3/4 overflow-hidden">
+    {
+      cover ? (
+        <Image
+          src={cover}
+          alt={t.books.coverAlt(title)}
+          width={320}
+          loading={eager ? "eager" : "lazy"}
+          decoding="async"
+          class="w-full h-full object-cover object-top group-hover:scale-103 transition-transform duration-300"
+        />
+      ) : (
+        <div class="flex justify-center items-center p-4 w-full h-full text-sm text-base-content/50 text-center">
+          {t.books.noCover}
+        </div>
+      )
+    }
+  </figure>
+  <div class="gap-2 p-3.5 card-body">
+    <h3 class="font-semibold group-hover:text-primary text-sm line-clamp-2 leading-snug transition-colors card-title">
+      {title}
+    </h3>
+    <div class="justify-between items-center mt-auto pt-1 card-actions">
+      <div class="flex items-center gap-1">
+        <span class="badge badge-soft badge-sm">{edition}</span>
+        {
+          languages.map((bookLang) => (
+            <span class="opacity-75 badge-outline uppercase badge badge-xs">
+              {bookLang}
+            </span>
+          ))
+        }
+      </div>
+      {
+        releaseYear && (
+          <span class="tabular-nums text-xs text-base-content/60">
+            {releaseYear}
+          </span>
+        )
+      }
+    </div>
+  </div>
+</a>

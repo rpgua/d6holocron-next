@@ -1,0 +1,44 @@
+---
+import { getCollection } from "astro:content";
+import { LOCALES, type Locale } from "../../../i18n";
+import type { CategoryKey } from "../../../i18n/uk";
+import {
+  CATEGORY_ORDER,
+  getBooksByLocale,
+  groupBooksByCategory,
+  type BookEntry,
+} from "../../../utils/books";
+import CategoryView from "../../../views/CategoryView.astro";
+
+export async function getStaticPaths() {
+  const allBooks = await getCollection("books");
+
+  return LOCALES.flatMap((lang) => {
+    const localeBooks = getBooksByLocale(allBooks, lang);
+    const grouped = groupBooksByCategory(localeBooks);
+    const counts = Object.fromEntries(
+      CATEGORY_ORDER.map((key) => [key, grouped[key].length]),
+    ) as Record<CategoryKey, number>;
+
+    return CATEGORY_ORDER.map((category) => ({
+      params: { lang, category },
+      props: {
+        category,
+        books: grouped[category],
+        counts,
+      },
+    }));
+  });
+}
+
+interface Props {
+  category: CategoryKey;
+  books: BookEntry[];
+  counts: Record<CategoryKey, number>;
+}
+
+const { lang } = Astro.params as { lang: Locale };
+const { category, books, counts } = Astro.props;
+---
+
+<CategoryView lang={lang} category={category} books={books} counts={counts} />
