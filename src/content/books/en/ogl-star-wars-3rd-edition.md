@@ -5,7 +5,7 @@ edition: "OpenD6"
 category: "core"
 publisher: "Fan Supplement"
 # author: ""
-# releaseYear: 
+releaseYear: 2018
 productCode: "StarWars3rdEd"
 # isbn: ""
 # pages: 
